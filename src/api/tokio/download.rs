@@ -215,7 +215,14 @@ impl ApiRepo {
     /// # })
     /// ```
     pub async fn info(&self) -> Result<RepoInfo, ApiError> {
-        Ok(self.info_request().send().await?.json().await?)
+        println!("Getting info for repo");
+        let result = self.api.cache.repo(self.repo.clone()).info();
+        let repo_info = RepoInfo {
+            siblings: result.unwrap(),
+            sha: "".to_string(),
+        };
+        Ok(repo_info)
+        // Ok(self.info_request().send().await?.json().await?)
     }
 
     /// Get the raw [`reqwest::RequestBuilder`] with the url and method already set

@@ -75,7 +75,7 @@ impl std::error::Error for ReqwestErrorWithBody {}
 ///
 ///     // Will return Err with both the error and response body if status code is not successful
 ///     let response = response.maybe_err().await?;
-///     
+///
 ///     // Process successful response...
 ///     Ok(())
 /// }

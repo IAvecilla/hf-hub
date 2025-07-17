@@ -1,10 +1,13 @@
-#![deny(missing_docs)]
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 #[cfg(any(feature = "tokio", feature = "ureq"))]
 use rand::{distributions::Alphanumeric, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
+use tokio::fs::read_dir;
+
+use crate::api::tokio::ApiError;
+use crate::api::Siblings;
 
 /// The actual Api to interact with the hub.
 #[cfg(any(feature = "tokio", feature = "ureq"))]
@@ -172,6 +175,23 @@ impl CacheRepo {
         } else {
             None
         }
+    }
+
+    fn info(&self) -> Result<Vec<Siblings>, ApiError> {
+        let mut info = vec![];
+        let commit_path = self.ref_path();
+        let commit_hash = std::fs::read_to_string(commit_path).ok().unwrap();
+        let pointer_path = self.pointer_path(&commit_hash);
+        let paths = std::fs::read_dir(pointer_path).unwrap();
+        for path_result in paths {
+            let full_path = path_result?.path();
+            let file_name = full_path.file_name().unwrap().to_str().unwrap().to_string();
+            let sibling = Siblings {
+                rfilename: file_name,
+            };
+            info.push(sibling);
+        }
+        Ok(info)
     }
 
     fn path(&self) -> PathBuf {
