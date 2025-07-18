@@ -216,13 +216,15 @@ impl ApiRepo {
     /// ```
     pub async fn info(&self) -> Result<RepoInfo, ApiError> {
         println!("Getting info for repo");
-        let result = self.api.cache.repo(self.repo.clone()).info();
-        let repo_info = RepoInfo {
-            siblings: result.unwrap(),
-            sha: "".to_string(),
-        };
-        Ok(repo_info)
-        // Ok(self.info_request().send().await?.json().await?)
+        if let Some(result) = self.api.cache.repo(self.repo.clone()).info() {
+            let repo_info = RepoInfo {
+                siblings: result,
+                sha: "".to_string(),
+            };
+            Ok(repo_info)
+        } else {
+            Ok(self.info_request().send().await?.json().await?)
+        }
     }
 
     /// Get the raw [`reqwest::RequestBuilder`] with the url and method already set

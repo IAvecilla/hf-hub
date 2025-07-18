@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use tokio::fs::read_dir;
 
-use crate::api::tokio::ApiError;
+use crate::api::sync::ApiError;
 use crate::api::Siblings;
 
 /// The actual Api to interact with the hub.
@@ -177,21 +177,28 @@ impl CacheRepo {
         }
     }
 
-    fn info(&self) -> Result<Vec<Siblings>, ApiError> {
+    fn info(&self) -> Option<Vec<Siblings>> {
         let mut info = vec![];
         let commit_path = self.ref_path();
-        let commit_hash = std::fs::read_to_string(commit_path).ok().unwrap();
+        let commit_hash = std::fs::read_to_string(commit_path).ok()?;
         let pointer_path = self.pointer_path(&commit_hash);
-        let paths = std::fs::read_dir(pointer_path).unwrap();
+        let paths = std::fs::read_dir(pointer_path).ok()?;
         for path_result in paths {
-            let full_path = path_result?.path();
-            let file_name = full_path.file_name().unwrap().to_str().unwrap().to_string();
+            let full_path = path_result.ok()?.path();
+            let file_name = full_path
+                .file_name()
+                .map(|name| name.to_str().unwrap().to_string())
+                .unwrap();
             let sibling = Siblings {
                 rfilename: file_name,
             };
             info.push(sibling);
         }
-        Ok(info)
+        if info.is_empty() {
+            None
+        } else {
+            Some(info)
+        }
     }
 
     fn path(&self) -> PathBuf {
