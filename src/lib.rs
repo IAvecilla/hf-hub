@@ -4,15 +4,14 @@ use rand::{distributions::Alphanumeric, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use tokio::fs::read_dir;
 
-use crate::api::sync::ApiError;
-use crate::api::Siblings;
+use crate::api::{RepoInfo, Siblings};
 
 /// The actual Api to interact with the hub.
 #[cfg(any(feature = "tokio", feature = "ureq"))]
 pub mod api;
 
+pub const COMPLETE_DOWNLOAD_FILE: &str = ".download_complete";
 /// The type of repo to interact with
 #[derive(Debug, Clone, Copy)]
 pub enum RepoType {
@@ -177,28 +176,62 @@ impl CacheRepo {
         }
     }
 
-    fn info(&self) -> Option<Vec<Siblings>> {
-        let mut info = vec![];
+    fn info(&self) -> Option<RepoInfo> {
         let commit_path = self.ref_path();
         let commit_hash = std::fs::read_to_string(commit_path).ok()?;
         let pointer_path = self.pointer_path(&commit_hash);
-        let paths = std::fs::read_dir(pointer_path).ok()?;
-        for path_result in paths {
-            let full_path = path_result.ok()?.path();
-            let file_name = full_path
-                .file_name()
-                .map(|name| name.to_str().unwrap().to_string())
-                .unwrap();
-            let sibling = Siblings {
-                rfilename: file_name,
-            };
-            info.push(sibling);
+        let entries: Vec<_> = std::fs::read_dir(&pointer_path).ok()?.collect();
+
+        let download_verified = entries.iter().any(|entry| {
+            if let Ok(entry) = entry {
+                if let Some(name) = entry.file_name().to_str() {
+                    return name.starts_with(COMPLETE_DOWNLOAD_FILE);
+                }
+            }
+            false
+        });
+
+        if !download_verified {
+            log::warn!(
+                "Download could not be verified for commit {commit_hash} in repo {}",
+                self.repo.repo_id
+            );
+            return None;
         }
-        if info.is_empty() {
+
+        let siblings: Vec<Siblings> = entries
+            .into_iter()
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let file_name = entry.file_name().to_str()?.to_string();
+                Some(Siblings {
+                    rfilename: file_name,
+                })
+            })
+            .collect();
+
+        if siblings.is_empty() {
             None
         } else {
-            Some(info)
+            Some(RepoInfo {
+                siblings,
+                sha: commit_hash,
+            })
         }
+    }
+
+    fn write_sanity_file(&self) -> Result<(), std::io::Error> {
+        let commit_path = self.ref_path();
+        let commit_hash = std::fs::read_to_string(commit_path)?;
+        let verification_file = self
+            .cache
+            .path()
+            .join(self.repo.folder_name())
+            .join("snapshots")
+            .join(&commit_hash)
+            .join(COMPLETE_DOWNLOAD_FILE);
+        std::fs::File::create(verification_file)?;
+        Ok(())
     }
 
     fn path(&self) -> PathBuf {

@@ -215,16 +215,16 @@ impl ApiRepo {
     /// # })
     /// ```
     pub async fn info(&self) -> Result<RepoInfo, ApiError> {
-        println!("Getting info for repo");
         if let Some(result) = self.api.cache.repo(self.repo.clone()).info() {
-            let repo_info = RepoInfo {
-                siblings: result,
-                sha: "".to_string(),
-            };
-            Ok(repo_info)
+            Ok(result)
         } else {
             Ok(self.info_request().send().await?.json().await?)
         }
+    }
+
+    /// Mark a model download as complete to ensure that is in the cache and is complete.
+    pub fn mark_download_as_complete(&self) -> Result<(), std::io::Error> {
+        self.api.cache.repo(self.repo.clone()).write_sanity_file()
     }
 
     /// Get the raw [`reqwest::RequestBuilder`] with the url and method already set

@@ -31,7 +31,7 @@ pub struct BatchObject {
 
 #[derive(Debug, Deserialize)]
 pub struct BatchError {
-    pub code: i32,
+    pub _code: i32,
     pub message: String,
 }
 
